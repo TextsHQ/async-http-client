@@ -407,34 +407,6 @@ extension HTTPConnectionPool.ConnectionFactory {
             tlsConfig.applicationProtocols = ["http/1.1"]
         }
 
-        #if canImport(Network)
-        if #available(OSX 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *), let tsBootstrap = NIOTSConnectionBootstrap(validatingGroup: eventLoop) {
-            // create NIOClientTCPBootstrap with NIOTS TLS provider
-            let bootstrapFuture = tlsConfig.getNWProtocolTLSOptions(on: eventLoop, serverNameIndicatorOverride: key.serverNameIndicatorOverride).map {
-                options -> NIOClientTCPBootstrapProtocol in
-
-                tsBootstrap
-                    .channelOption(NIOTSChannelOptions.waitForActivity, value: self.clientConfiguration.networkFrameworkWaitForConnectivity)
-                    .connectTimeout(deadline - NIODeadline.now())
-                    .tlsOptions(options)
-                    .channelInitializer { channel in
-                        do {
-                            try channel.pipeline.syncOperations.addHandler(HTTPClient.NWErrorHandler())
-                            try channel.pipeline.syncOperations.addHandler(NWWaitingHandler(requester: requester, connectionID: connectionID))
-                            // we don't need to set a TLS deadline for NIOTS connections, since the
-                            // TLS handshake is part of the TS connection bootstrap. If the TLS
-                            // handshake times out the complete connection creation will be failed.
-                            try channel.pipeline.syncOperations.addHandler(TLSEventsHandler(deadline: nil))
-                            return channel.eventLoop.makeSucceededVoidFuture()
-                        } catch {
-                            return channel.eventLoop.makeFailedFuture(error)
-                        }
-                    } as NIOClientTCPBootstrapProtocol
-            }
-            return bootstrapFuture
-        }
-        #endif
-
         let sslContextFuture = sslContextCache.sslContext(
             tlsConfiguration: tlsConfig,
             eventLoop: eventLoop,
