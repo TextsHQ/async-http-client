@@ -594,7 +594,6 @@ class HTTPClientInternalTests: XCTestCase {
 extension HTTPClient.Configuration {
     func enableFastFailureModeForTesting() -> Self {
         var copy = self
-        copy.networkFrameworkWaitForConnectivity = false
         copy.connectionPool.retryConnectionEstablishment = false
         return copy
     }
