@@ -13,9 +13,6 @@
 //===----------------------------------------------------------------------===//
 
 /* NOT @testable */ import AsyncHTTPClient // Tests that really need @testable go into HTTP2ClientInternalTests.swift
-#if canImport(Network)
-import Network
-#endif
 import Logging
 import NIOCore
 import NIOHTTP1

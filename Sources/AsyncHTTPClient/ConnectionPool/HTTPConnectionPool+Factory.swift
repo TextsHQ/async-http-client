@@ -20,9 +20,6 @@ import NIOPosix
 import NIOSOCKS
 import NIOSSL
 import NIOTLS
-#if canImport(Network)
-import NIOTransportServices
-#endif
 
 extension HTTPConnectionPool {
     struct ConnectionFactory {
@@ -318,23 +315,6 @@ extension HTTPConnectionPool.ConnectionFactory {
         deadline: NIODeadline,
         eventLoop: EventLoop
     ) -> NIOClientTCPBootstrapProtocol {
-        #if canImport(Network)
-        if #available(OSX 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *), let tsBootstrap = NIOTSConnectionBootstrap(validatingGroup: eventLoop) {
-            return tsBootstrap
-                .channelOption(NIOTSChannelOptions.waitForActivity, value: self.clientConfiguration.networkFrameworkWaitForConnectivity)
-                .connectTimeout(deadline - NIODeadline.now())
-                .channelInitializer { channel in
-                    do {
-                        try channel.pipeline.syncOperations.addHandler(HTTPClient.NWErrorHandler())
-                        try channel.pipeline.syncOperations.addHandler(NWWaitingHandler(requester: requester, connectionID: connectionID))
-                        return channel.eventLoop.makeSucceededVoidFuture()
-                    } catch {
-                        return channel.eventLoop.makeFailedFuture(error)
-                    }
-                }
-        }
-        #endif
-
         if let nioBootstrap = ClientBootstrap(validatingGroup: eventLoop) {
             return nioBootstrap
                 .connectTimeout(deadline - NIODeadline.now())
@@ -359,7 +339,7 @@ extension HTTPConnectionPool.ConnectionFactory {
             logger: logger
         )
 
-        var channelFuture = bootstrapFuture.flatMap { bootstrap -> EventLoopFuture<Channel> in
+        let channelFuture = bootstrapFuture.flatMap { bootstrap -> EventLoopFuture<Channel> in
             return bootstrap.connect(target: self.key.connectionTarget)
         }.flatMap { channel -> EventLoopFuture<(Channel, String?)> in
             do {
@@ -377,13 +357,6 @@ extension HTTPConnectionPool.ConnectionFactory {
                 return channel.eventLoop.makeFailedFuture(HTTPClientError.remoteConnectionClosed)
             }
         }
-
-        #if canImport(Network)
-        // If NIOTransportSecurity is used, we want to map NWErrors into NWPOsixErrors or NWTLSError.
-        channelFuture = channelFuture.flatMapErrorThrowing { error in
-            throw HTTPClient.NWErrorHandler.translateError(error)
-        }
-        #endif
 
         return channelFuture
     }

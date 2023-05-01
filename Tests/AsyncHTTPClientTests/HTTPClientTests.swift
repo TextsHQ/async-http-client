@@ -14,9 +14,6 @@
 
 /* NOT @testable */ import AsyncHTTPClient // Tests that need @testable go into HTTPClientInternalTests.swift
 import Atomics
-#if canImport(Network)
-import Network
-#endif
 import Logging
 import NIOConcurrencyHelpers
 import NIOCore
@@ -26,7 +23,6 @@ import NIOHTTPCompression
 import NIOPosix
 import NIOSSL
 import NIOTestUtils
-import NIOTransportServices
 import XCTest
 
 final class HTTPClientTests: XCTestCaseHTTPClientTestsBaseClass {
@@ -1208,24 +1204,9 @@ final class HTTPClientTests: XCTestCaseHTTPClientTestsBaseClass {
                 XCTFail("Shouldn't succeed")
                 continue
             case .failure(let error):
-                if isTestingNIOTS() {
-                    #if canImport(Network)
-                    guard let clientError = error as? HTTPClient.NWTLSError else {
-                        XCTFail("Unexpected error: \(error)")
-                        continue
-                    }
-                    // We're speaking TLS to a plain text server. This will cause the handshake to fail but given
-                    // that the bytes "HTTP/1.1" aren't the start of a valid TLS packet, we can also get
-                    // errSSLPeerProtocolVersion because the first bytes contain the version.
-                    XCTAssert(clientError.status == errSSLHandshakeFail ||
-                        clientError.status == errSSLPeerProtocolVersion,
-                        "unexpected NWTLSError with status \(clientError.status)")
-                    #endif
-                } else {
-                    guard let clientError = error as? NIOSSLError, case NIOSSLError.handshakeFailed = clientError else {
-                        XCTFail("Unexpected error: \(error)")
-                        continue
-                    }
+                guard let clientError = error as? NIOSSLError, case NIOSSLError.handshakeFailed = clientError else {
+                    XCTFail("Unexpected error: \(error)")
+                    continue
                 }
             }
         }
@@ -1255,19 +1236,11 @@ final class HTTPClientTests: XCTestCaseHTTPClientTestsBaseClass {
         let localClient = HTTPClient(eventLoopGroupProvider: .shared(self.clientGroup), configuration: config)
         defer { XCTAssertNoThrow(try localClient.syncShutdown()) }
         XCTAssertThrowsError(try localClient.get(url: "https://localhost:\(port)").wait()) { error in
-            #if canImport(Network)
-            guard let nwTLSError = error as? HTTPClient.NWTLSError else {
-                XCTFail("could not cast \(error) of type \(type(of: error)) to \(HTTPClient.NWTLSError.self)")
-                return
-            }
-            XCTAssertEqual(nwTLSError.status, errSSLBadCert, "unexpected tls error: \(nwTLSError)")
-            #else
             guard let sslError = error as? NIOSSLError,
                   case .handshakeFailed(.sslError) = sslError else {
                 XCTFail("unexpected error \(error)")
                 return
             }
-            #endif
         }
     }
 
@@ -1296,19 +1269,11 @@ final class HTTPClientTests: XCTestCaseHTTPClientTestsBaseClass {
         defer { XCTAssertNoThrow(try localClient.syncShutdown()) }
 
         XCTAssertThrowsError(try localClient.get(url: "https://localhost:\(port)", deadline: .now() + .seconds(2)).wait()) { error in
-            #if canImport(Network)
-            guard let nwTLSError = error as? HTTPClient.NWTLSError else {
-                XCTFail("could not cast \(error) of type \(type(of: error)) to \(HTTPClient.NWTLSError.self)")
-                return
-            }
-            XCTAssertEqual(nwTLSError.status, errSSLBadCert, "unexpected tls error: \(nwTLSError)")
-            #else
             guard let sslError = error as? NIOSSLError,
                   case .handshakeFailed(.sslError) = sslError else {
                 XCTFail("unexpected error \(error)")
                 return
             }
-            #endif
         }
     }
 
@@ -1873,16 +1838,7 @@ final class HTTPClientTests: XCTestCaseHTTPClientTestsBaseClass {
         }
 
         XCTAssertThrowsError(try localClient.get(url: "http://localhost:\(port)").wait()) { error in
-            if isTestingNIOTS() {
-                #if canImport(Network)
-                // We can't be more specific than this.
-                XCTAssertTrue(error is HTTPClient.NWTLSError || error is HTTPClient.NWPOSIXError)
-                #else
-                XCTFail("Impossible condition")
-                #endif
-            } else {
-                XCTAssert(error is NIOConnectionError, "Unexpected error: \(error)")
-            }
+            XCTAssert(error is NIOConnectionError, "Unexpected error: \(error)")
         }
     }
 
@@ -2790,14 +2746,7 @@ final class HTTPClientTests: XCTestCaseHTTPClientTestsBaseClass {
             XCTAssertNoThrow(try server.close().wait())
         }
 
-        var timeout = HTTPClient.Configuration.Timeout(connect: .seconds(10))
-        if isTestingNIOTS() {
-            // If we are using Network.framework, we set the connect timeout down very low here
-            // because on NIOTS a failing TLS handshake manifests as a connect timeout.
-            // Note that we do this here to prove that we correctly manifest the underlying error:
-            // DO NOT CHANGE THIS TO DISABLE WAITING FOR CONNECTIVITY.
-            timeout.connect = .milliseconds(100)
-        }
+        let timeout = HTTPClient.Configuration.Timeout(connect: .seconds(10))
 
         let config = HTTPClient.Configuration(timeout: timeout)
         let client = HTTPClient(eventLoopGroupProvider: .shared(self.clientGroup), configuration: config)
@@ -2809,18 +2758,9 @@ final class HTTPClientTests: XCTestCaseHTTPClientTestsBaseClass {
         let task = client.execute(request: request, delegate: TestHTTPDelegate())
 
         XCTAssertThrowsError(try task.wait()) { error in
-            if isTestingNIOTS() {
-                #if canImport(Network)
-                // We can't be more specific than this.
-                XCTAssertTrue(error is HTTPClient.NWTLSError)
-                #else
-                XCTFail("Impossible condition")
-                #endif
-            } else {
-                switch error as? NIOSSLError {
-                case .some(.handshakeFailed(.sslError(_))): break
-                default: XCTFail("Handshake failed with unexpected error: \(String(describing: error))")
-                }
+            switch error as? NIOSSLError {
+            case .some(.handshakeFailed(.sslError(_))): break
+            default: XCTFail("Handshake failed with unexpected error: \(String(describing: error))")
             }
         }
     }
@@ -2849,12 +2789,7 @@ final class HTTPClientTests: XCTestCaseHTTPClientTestsBaseClass {
             XCTAssertNoThrow(try server.close().wait())
         }
 
-        var timeout = HTTPClient.Configuration.Timeout(connect: .seconds(10))
-        if isTestingNIOTS() {
-            // If we are using Network.framework, we set the connect timeout down very low here
-            // because on NIOTS a failing TLS handshake manifests as a connect timeout.
-            timeout.connect = .milliseconds(300)
-        }
+        let timeout = HTTPClient.Configuration.Timeout(connect: .seconds(10))
 
         let config = HTTPClient.Configuration(timeout: timeout)
         let client = HTTPClient(eventLoopGroupProvider: .shared(self.clientGroup), configuration: config)
@@ -2866,18 +2801,9 @@ final class HTTPClientTests: XCTestCaseHTTPClientTestsBaseClass {
         let task = client.execute(request: request, delegate: TestHTTPDelegate())
 
         XCTAssertThrowsError(try task.wait()) { error in
-            if isTestingNIOTS() {
-                #if canImport(Network)
-                // We can't be more specific than this.
-                XCTAssertTrue(error is HTTPClient.NWTLSError)
-                #else
-                XCTFail("Impossible condition")
-                #endif
-            } else {
-                switch error as? NIOSSLError {
-                case .some(.handshakeFailed(.sslError(_))): break
-                default: XCTFail("Handshake failed with unexpected error: \(String(describing: error))")
-                }
+            switch error as? NIOSSLError {
+            case .some(.handshakeFailed(.sslError(_))): break
+            default: XCTFail("Handshake failed with unexpected error: \(String(describing: error))")
             }
         }
     }
@@ -3218,9 +3144,6 @@ final class HTTPClientTests: XCTestCaseHTTPClientTestsBaseClass {
     }
 
     func testSynchronousHandshakeErrorReporting() throws {
-        // This only affects cases where we use NIOSSL.
-        guard !isTestingNIOTS() else { return }
-
         // We use a specially crafted client that has no cipher suites to offer. To do this we ask
         // only for cipher suites incompatible with our TLS version.
         var tlsConfig = TLSConfiguration.makeClientConfiguration()

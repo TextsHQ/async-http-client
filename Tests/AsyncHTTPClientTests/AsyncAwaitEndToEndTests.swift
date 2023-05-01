@@ -504,19 +504,11 @@ final class AsyncAwaitEndToEndTests: XCTestCase {
             defer { XCTAssertNoThrow(try localClient.syncShutdown()) }
             let request = HTTPClientRequest(url: "https://localhost:\(port)")
             await XCTAssertThrowsError(try await localClient.execute(request, deadline: .now() + .seconds(2))) { error in
-                #if canImport(Network)
-                guard let nwTLSError = error as? HTTPClient.NWTLSError else {
-                    XCTFail("could not cast \(error) of type \(type(of: error)) to \(HTTPClient.NWTLSError.self)")
-                    return
-                }
-                XCTAssertEqual(nwTLSError.status, errSSLBadCert, "unexpected tls error: \(nwTLSError)")
-                #else
                 guard let sslError = error as? NIOSSLError,
                       case .handshakeFailed(.sslError) = sslError else {
                     XCTFail("unexpected error \(error)")
                     return
                 }
-                #endif
             }
         }
     }

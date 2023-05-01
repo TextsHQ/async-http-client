@@ -26,7 +26,6 @@ import NIOHTTPCompression
 import NIOPosix
 import NIOSSL
 import NIOTLS
-import NIOTransportServices
 import XCTest
 #if canImport(Darwin)
 import Darwin
@@ -34,22 +33,7 @@ import Darwin
 import Glibc
 #endif
 
-/// Are we testing NIO Transport services
-func isTestingNIOTS() -> Bool {
-    #if canImport(Network)
-    return ProcessInfo.processInfo.environment["DISABLE_TS_TESTS"] != "true"
-    #else
-    return false
-    #endif
-}
-
 func getDefaultEventLoopGroup(numberOfThreads: Int) -> EventLoopGroup {
-    #if canImport(Network)
-    if #available(OSX 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *),
-       isTestingNIOTS() {
-        return NIOTSEventLoopGroup(loopCount: numberOfThreads, defaultQoS: .default)
-    }
-    #endif
     return MultiThreadedEventLoopGroup(numberOfThreads: numberOfThreads)
 }
 
