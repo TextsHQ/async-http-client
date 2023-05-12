@@ -22,8 +22,8 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.50.0"),
-        .package(url: "https://github.com/1Conan/swift-nio-ssl.git", branch: "main"),
-        .package(url: "https://github.com/1Conan/swift-nio-http2.git", branch: "main"),
+        .package(url: "https://github.com/TextsHQ/swift-nio-ssl.git", branch: "main"),
+        .package(url: "https://github.com/TextsHQ/swift-nio-http2.git", branch: "main"),
         .package(url: "https://github.com/apple/swift-nio-extras.git", from: "1.13.0"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.4.4"),
         .package(url: "https://github.com/apple/swift-atomics.git", from: "1.0.2"),
