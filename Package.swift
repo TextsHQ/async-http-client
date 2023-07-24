@@ -21,7 +21,7 @@ let package = Package(
         .library(name: "AsyncHTTPClient", targets: ["AsyncHTTPClient"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/apple/swift-nio.git", from: "2.50.0"),
+        .package(url: "https://github.com/TextsHQ/swift-nio.git", branch: "main"),
         .package(url: "https://github.com/TextsHQ/swift-nio-ssl.git", branch: "main"),
         .package(url: "https://github.com/TextsHQ/swift-nio-http2.git", branch: "main"),
         .package(url: "https://github.com/apple/swift-nio-extras.git", from: "1.13.0"),
