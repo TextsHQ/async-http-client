@@ -903,15 +903,7 @@ extension HTTPClient {
     ///
     /// This will select the concrete `EventLoopGroup` depending which platform this is running on.
     public static var defaultEventLoopGroup: EventLoopGroup {
-        #if canImport(Network)
-        if #available(OSX 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *) {
-            return NIOTSEventLoopGroup.singleton
-        } else {
-            return MultiThreadedEventLoopGroup.singleton
-        }
-        #else
         return MultiThreadedEventLoopGroup.singleton
-        #endif
     }
 }
 
