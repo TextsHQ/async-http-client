@@ -23,7 +23,7 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/TextsHQ/swift-nio.git", branch: "main"),
         .package(url: "https://github.com/TextsHQ/swift-nio-ssl.git", branch: "main"),
-        .package(url: "https://github.com/TextsHQ/swift-nio-http2.git", branch: "main"),
+        .package(url: "https://github.com/TextsHQ/swift-nio-http2.git", revision: "01deb2a6f4b31f17d310fd81d505170f17f79194"),
         .package(url: "https://github.com/TextsHQ/swift-nio-extras.git", branch: "main"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.4.4"),
         .package(url: "https://github.com/apple/swift-atomics.git", from: "1.0.2"),
