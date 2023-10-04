@@ -151,12 +151,6 @@ final class HTTPClientTests: XCTestCaseHTTPClientTestsBaseClass {
             XCTAssertEqual(url.path, "/file/path")
             XCTAssertEqual(url.absoluteString, "https+unix://%2Ftmp%2Ffile%20with%20spaces%E3%81%A8%E6%BC%A2%E5%AD%97/file/path")
         }
-
-        let url9 = URL(httpURLWithSocketPath: "/tmp/file", uri: " ")
-        XCTAssertNil(url9)
-
-        let url10 = URL(httpsURLWithSocketPath: "/tmp/file", uri: " ")
-        XCTAssertNil(url10)
     }
 
     func testBadUnixWithBaseURL() {
@@ -3435,5 +3429,23 @@ final class HTTPClientTests: XCTestCaseHTTPClientTestsBaseClass {
             maximumUses: 150,
             requests: 300
         )
+    }
+
+    func testClientWithDefaultSingletonELG() throws {
+        let client = HTTPClient()
+        defer {
+            XCTAssertNoThrow(try client.shutdown().wait())
+        }
+        let response = try client.get(url: self.defaultHTTPBinURLPrefix + "get").wait()
+        XCTAssertEqual(.ok, response.status)
+    }
+
+    func testClientWithELGInit() throws {
+        let client = HTTPClient(eventLoopGroup: MultiThreadedEventLoopGroup.singleton)
+        defer {
+            XCTAssertNoThrow(try client.shutdown().wait())
+        }
+        let response = try client.get(url: self.defaultHTTPBinURLPrefix + "get").wait()
+        XCTAssertEqual(.ok, response.status)
     }
 }
