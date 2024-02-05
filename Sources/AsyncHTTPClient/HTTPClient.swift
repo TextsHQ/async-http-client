@@ -78,7 +78,7 @@ public class HTTPClient {
     private var state: State
     private let stateLock = NIOLock()
 
-    internal static let loggingDisabled = Logger(label: "AHC-do-not-log", factory: { _ in SwiftLogNoOpLogHandler() })
+    static let loggingDisabled = Logger(label: "AHC-do-not-log", factory: { _ in SwiftLogNoOpLogHandler() })
 
     /// Create an ``HTTPClient`` with specified `EventLoopGroup` provider and configuration.
     ///
@@ -165,7 +165,6 @@ public class HTTPClient {
         }
     }
 
-    #if swift(>=5.7)
     /// Shuts down the client and `EventLoopGroup` if it was created by the client.
     ///
     /// This method blocks the thread indefinitely, prefer using ``shutdown()-96ayw``.
@@ -173,14 +172,6 @@ public class HTTPClient {
     public func syncShutdown() throws {
         try self.syncShutdown(requiresCleanClose: false)
     }
-    #else
-    /// Shuts down the client and `EventLoopGroup` if it was created by the client.
-    ///
-    /// This method blocks the thread indefinitely, prefer using ``shutdown()-96ayw``.
-    public func syncShutdown() throws {
-        try self.syncShutdown(requiresCleanClose: false)
-    }
-    #endif
 
     /// Shuts down the client and `EventLoopGroup` if it was created by the client.
     ///
@@ -192,7 +183,7 @@ public class HTTPClient {
     /// throw the appropriate error if needed. For instance, if its internal connection pool has any non-released connections,
     /// this indicate shutdown was called too early before tasks were completed or explicitly canceled.
     /// In general, setting this parameter to `true` should make it easier and faster to catch related programming errors.
-    internal func syncShutdown(requiresCleanClose: Bool) throws {
+    func syncShutdown(requiresCleanClose: Bool) throws {
         if let eventLoop = MultiThreadedEventLoopGroup.currentEventLoop {
             preconditionFailure("""
             BUG DETECTED: syncShutdown() must not be called when on an EventLoop.
@@ -778,7 +769,7 @@ public class HTTPClient {
             self.init(tlsConfiguration: tlsConfig,
                       redirectConfiguration: redirectConfiguration,
                       timeout: timeout,
-                      connectionPool: ConnectionPool(),
+                      connectionPool: ConnectionPool(idleTimeout: maximumAllowedIdleTimeInConnectionPool),
                       proxy: proxy,
                       ignoreUncleanSSLShutdown: ignoreUncleanSSLShutdown,
                       decompression: decompression)
@@ -797,7 +788,7 @@ public class HTTPClient {
             self.init(tlsConfiguration: tlsConfig,
                       redirectConfiguration: redirectConfiguration,
                       timeout: timeout,
-                      connectionPool: ConnectionPool(),
+                      connectionPool: ConnectionPool(idleTimeout: connectionPool),
                       proxy: proxy,
                       ignoreUncleanSSLShutdown: ignoreUncleanSSLShutdown,
                       decompression: decompression)
@@ -907,9 +898,7 @@ extension HTTPClient {
     }
 }
 
-#if swift(>=5.7)
 extension HTTPClient.Configuration: Sendable {}
-#endif
 
 extension HTTPClient.EventLoopGroupProvider: Sendable {}
 extension HTTPClient.EventLoopPreference: Sendable {}
@@ -920,12 +909,14 @@ extension HTTPClient: @unchecked Sendable {}
 extension HTTPClient.Configuration {
     /// Timeout configuration.
     public struct Timeout: Sendable {
-        /// Specifies connect timeout. If no connect timeout is given, a default 30 seconds timeout will applied.
+        /// Specifies connect timeout. If no connect timeout is given, a default 10 seconds timeout will be applied.
         public var connect: TimeAmount?
         /// Specifies read timeout.
         public var read: TimeAmount?
+        /// Specifies the maximum amount of time without bytes being written by the client before closing the connection.
+        public var write: TimeAmount?
 
-        /// internal connection creation timeout. Defaults the connect timeout to always contain a value.
+        /// Internal connection creation timeout. Defaults the connect timeout to always contain a value.
         var connectionCreationTimeout: TimeAmount {
             self.connect ?? .seconds(10)
         }
@@ -935,7 +926,25 @@ extension HTTPClient.Configuration {
         /// - parameters:
         ///     - connect: `connect` timeout. Will default to 10 seconds, if no value is provided.
         ///     - read: `read` timeout.
-        public init(connect: TimeAmount? = nil, read: TimeAmount? = nil) {
+        public init(
+            connect: TimeAmount? = nil,
+            read: TimeAmount? = nil
+        ) {
+            self.connect = connect
+            self.read = read
+        }
+
+        /// Create timeout.
+        ///
+        /// - parameters:
+        ///     - connect: `connect` timeout. Will default to 10 seconds, if no value is provided.
+        ///     - read: `read` timeout.
+        ///     - write: `write` timeout.
+        public init(
+            connect: TimeAmount? = nil,
+            read: TimeAmount? = nil,
+            write: TimeAmount
+        ) {
             self.connect = connect
             self.read = read
         }
@@ -1004,7 +1013,7 @@ extension HTTPClient.Configuration {
     }
 
     public struct HTTPVersion: Sendable, Hashable {
-        internal enum Configuration {
+        enum Configuration {
             case http1Only
             case automatic
         }
@@ -1015,7 +1024,7 @@ extension HTTPClient.Configuration {
         /// HTTP/2 is used if we connect to a server with HTTPS and the server supports HTTP/2, otherwise we use HTTP/1
         public static let automatic: Self = .init(configuration: .automatic)
 
-        internal var configuration: Configuration
+        var configuration: Configuration
     }
 }
 
@@ -1029,6 +1038,7 @@ public struct HTTPClientError: Error, Equatable, CustomStringConvertible {
         case emptyScheme
         case unsupportedScheme(String)
         case readTimeout
+        case writeTimeout
         case remoteConnectionClosed
         case cancelled
         case identityCodingIncorrectlyPresent
@@ -1087,6 +1097,8 @@ public struct HTTPClientError: Error, Equatable, CustomStringConvertible {
             return "Unsupported scheme"
         case .readTimeout:
             return "Read timeout"
+        case .writeTimeout:
+            return "Write timeout"
         case .remoteConnectionClosed:
             return "Remote connection closed"
         case .cancelled:
@@ -1152,8 +1164,10 @@ public struct HTTPClientError: Error, Equatable, CustomStringConvertible {
     public static let emptyScheme = HTTPClientError(code: .emptyScheme)
     /// Provided URL scheme is not supported, supported schemes are: `http` and `https`
     public static func unsupportedScheme(_ scheme: String) -> HTTPClientError { return HTTPClientError(code: .unsupportedScheme(scheme)) }
-    /// Request timed out.
+    /// Request timed out while waiting for response.
     public static let readTimeout = HTTPClientError(code: .readTimeout)
+    /// Request timed out.
+    public static let writeTimeout = HTTPClientError(code: .writeTimeout)
     /// Remote connection was closed unexpectedly.
     public static let remoteConnectionClosed = HTTPClientError(code: .remoteConnectionClosed)
     /// Request was cancelled.

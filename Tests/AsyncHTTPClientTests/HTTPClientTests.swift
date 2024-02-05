@@ -1812,11 +1812,29 @@ final class HTTPClientTests: XCTestCaseHTTPClientTestsBaseClass {
     }
 
     func testPoolClosesIdleConnections() {
+        let configuration = HTTPClient.Configuration(
+            certificateVerification: .none,
+            maximumAllowedIdleTimeInConnectionPool: .milliseconds(100)
+        )
+
         let localClient = HTTPClient(eventLoopGroupProvider: .shared(self.clientGroup),
-                                     configuration: .init(connectionPool: .init(idleTimeout: .milliseconds(100))))
+                                     configuration: configuration)
         defer {
             XCTAssertNoThrow(try localClient.syncShutdown())
         }
+
+        // Make sure that the idle timeout of the connection pool is properly propagated
+        // to the connection pool itself, when using both inits.
+        XCTAssertEqual(configuration.connectionPool.idleTimeout, .milliseconds(100))
+        XCTAssertEqual(
+            configuration.connectionPool.idleTimeout,
+            HTTPClient.Configuration(
+                certificateVerification: .none,
+                connectionPool: .milliseconds(100),
+                backgroundActivityLogger: nil
+            ).connectionPool.idleTimeout
+        )
+
         XCTAssertNoThrow(try localClient.get(url: self.defaultHTTPBinURLPrefix + "get").wait())
         Thread.sleep(forTimeInterval: 0.2)
         XCTAssertEqual(self.defaultHTTPBin.activeConnections, 0)
@@ -3447,5 +3465,51 @@ final class HTTPClientTests: XCTestCaseHTTPClientTestsBaseClass {
         }
         let response = try client.get(url: self.defaultHTTPBinURLPrefix + "get").wait()
         XCTAssertEqual(.ok, response.status)
+    }
+
+    @available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, *)
+    func testAsyncExecuteWithCustomTLS() async throws {
+        let httpsBin = HTTPBin(.http1_1(ssl: true))
+        defer {
+            XCTAssertNoThrow(try httpsBin.shutdown())
+        }
+
+        // A client with default TLS settings, i.e. it won't accept `httpsBin`'s fake self-signed cert
+        let client = HTTPClient(eventLoopGroup: MultiThreadedEventLoopGroup.singleton)
+        defer {
+            XCTAssertNoThrow(try client.shutdown().wait())
+        }
+
+        var request = HTTPClientRequest(url: "https://localhost:\(httpsBin.port)/get")
+
+        // For now, let's allow bad TLS certs
+        request.tlsConfiguration = TLSConfiguration.clientDefault
+        // ! is safe, assigned above
+        request.tlsConfiguration!.certificateVerification = .none
+
+        let response1 = try await client.execute(request, timeout: /* infinity */ .hours(99))
+        XCTAssertEqual(.ok, response1.status)
+
+        // For the second request, we reset the TLS config
+        request.tlsConfiguration = nil
+        do {
+            let response2 = try await client.execute(request, timeout: /* infinity */ .hours(99))
+            XCTFail("shouldn't succeed, self-signed cert: \(response2)")
+        } catch {
+            switch error as? NIOSSLError {
+            case .some(.handshakeFailed(_)):
+                () // ok
+            default:
+                XCTFail("unexpected error: \(error)")
+            }
+        }
+
+        // And finally we allow it again.
+        request.tlsConfiguration = TLSConfiguration.clientDefault
+        // ! is safe, assigned above
+        request.tlsConfiguration!.certificateVerification = .none
+
+        let response3 = try await client.execute(request, timeout: /* infinity */ .hours(99))
+        XCTAssertEqual(.ok, response3.status)
     }
 }

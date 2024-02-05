@@ -29,6 +29,8 @@ import NIOTLS
 import XCTest
 #if canImport(Darwin)
 import Darwin
+#elseif canImport(Musl)
+import Musl
 #elseif canImport(Glibc)
 import Glibc
 #endif
@@ -422,6 +424,7 @@ internal final class HTTPBin<RequestHandler: ChannelInboundHandler> where
         _ mode: Mode = .http1_1(ssl: false, compress: false),
         proxy: Proxy = .none,
         bindTarget: BindTarget = .localhostIPv4RandomPort,
+        reusePort: Bool = false,
         handlerFactory: @escaping (Int) -> (RequestHandler)
     ) {
         self.mode = mode
@@ -444,6 +447,7 @@ internal final class HTTPBin<RequestHandler: ChannelInboundHandler> where
 
         self.serverChannel = try! ServerBootstrap(group: self.group)
             .serverChannelOption(ChannelOptions.socket(SocketOptionLevel(SOL_SOCKET), SO_REUSEADDR), value: 1)
+            .serverChannelOption(ChannelOptions.socket(SocketOptionLevel(SOL_SOCKET), SO_REUSEPORT), value: reusePort ? 1 : 0)
             .serverChannelInitializer { channel in
                 channel.pipeline.addHandler(self.activeConnCounterHandler)
             }.childChannelInitializer { channel in
@@ -626,9 +630,10 @@ extension HTTPBin where RequestHandler == HTTPBinHandler {
     convenience init(
         _ mode: Mode = .http1_1(ssl: false, compress: false),
         proxy: Proxy = .none,
-        bindTarget: BindTarget = .localhostIPv4RandomPort
+        bindTarget: BindTarget = .localhostIPv4RandomPort,
+        reusePort: Bool = false
     ) {
-        self.init(mode, proxy: proxy, bindTarget: bindTarget) { HTTPBinHandler(connectionID: $0) }
+        self.init(mode, proxy: proxy, bindTarget: bindTarget, reusePort: reusePort) { HTTPBinHandler(connectionID: $0) }
     }
 }
 

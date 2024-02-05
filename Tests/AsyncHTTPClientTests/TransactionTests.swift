@@ -24,9 +24,12 @@ import XCTest
 @available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, *)
 typealias PreparedRequest = HTTPClientRequest.Prepared
 
+@available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, *)
 final class TransactionTests: XCTestCase {
     func testCancelAsyncRequest() {
-        guard #available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, *) else { return }
+        // creating the `XCTestExpectation` off the main thread crashes on Linux with Swift 5.6
+        // therefore we create it here as a workaround which works fine
+        let scheduledRequestCanceled = self.expectation(description: "scheduled request canceled")
         XCTAsyncTest {
             let embeddedEventLoop = EmbeddedEventLoop()
             defer { XCTAssertNoThrow(try embeddedEventLoop.syncShutdownGracefully()) }
@@ -43,24 +46,29 @@ final class TransactionTests: XCTestCase {
                 preferredEventLoop: embeddedEventLoop
             )
 
-            let queuer = MockTaskQueuer()
+            let queuer = MockTaskQueuer { _ in
+                scheduledRequestCanceled.fulfill()
+            }
             transaction.requestWasQueued(queuer)
 
+            XCTAssertEqual(queuer.hitCancelCount, 0)
             Task.detached {
                 try await Task.sleep(nanoseconds: 5 * 1000 * 1000)
                 transaction.cancel()
             }
 
-            XCTAssertEqual(queuer.hitCancelCount, 0)
             await XCTAssertThrowsError(try await responseTask.value) { error in
                 XCTAssertTrue(error is CancellationError, "unexpected error \(error)")
             }
-            XCTAssertEqual(queuer.hitCancelCount, 1)
+
+            // self.fulfillment(of:) is not available on Linux
+            _ = {
+                self.wait(for: [scheduledRequestCanceled], timeout: 1)
+            }()
         }
     }
 
     func testDeadlineExceededWhileQueuedAndExecutorImmediatelyCancelsTask() {
-        guard #available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, *) else { return }
         XCTAsyncTest {
             let embeddedEventLoop = EmbeddedEventLoop()
             defer { XCTAssertNoThrow(try embeddedEventLoop.syncShutdownGracefully()) }
@@ -109,7 +117,6 @@ final class TransactionTests: XCTestCase {
     }
 
     func testResponseStreamingWorks() {
-        guard #available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, *) else { return }
         XCTAsyncTest {
             let embeddedEventLoop = EmbeddedEventLoop()
             defer { XCTAssertNoThrow(try embeddedEventLoop.syncShutdownGracefully()) }
@@ -169,7 +176,6 @@ final class TransactionTests: XCTestCase {
     }
 
     func testIgnoringResponseBodyWorks() {
-        guard #available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, *) else { return }
         XCTAsyncTest {
             let embeddedEventLoop = EmbeddedEventLoop()
             defer { XCTAssertNoThrow(try embeddedEventLoop.syncShutdownGracefully()) }
@@ -218,7 +224,6 @@ final class TransactionTests: XCTestCase {
     }
 
     func testWriteBackpressureWorks() {
-        guard #available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, *) else { return }
         XCTAsyncTest {
             let embeddedEventLoop = EmbeddedEventLoop()
             defer { XCTAssertNoThrow(try embeddedEventLoop.syncShutdownGracefully()) }
@@ -290,7 +295,6 @@ final class TransactionTests: XCTestCase {
     }
 
     func testSimpleGetRequest() {
-        guard #available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, *) else { return }
         XCTAsyncTest {
             let eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: 1)
             let eventLoop = eventLoopGroup.next()
@@ -346,7 +350,6 @@ final class TransactionTests: XCTestCase {
     }
 
     func testSimplePostRequest() {
-        guard #available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, *) else { return }
         XCTAsyncTest {
             let embeddedEventLoop = EmbeddedEventLoop()
             defer { XCTAssertNoThrow(try embeddedEventLoop.syncShutdownGracefully()) }
@@ -384,7 +387,6 @@ final class TransactionTests: XCTestCase {
     }
 
     func testPostStreamFails() {
-        guard #available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, *) else { return }
         XCTAsyncTest {
             let embeddedEventLoop = EmbeddedEventLoop()
             defer { XCTAssertNoThrow(try embeddedEventLoop.syncShutdownGracefully()) }
@@ -427,7 +429,6 @@ final class TransactionTests: XCTestCase {
     }
 
     func testResponseStreamFails() {
-        guard #available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, *) else { return }
         XCTAsyncTest(timeout: 30) {
             let embeddedEventLoop = EmbeddedEventLoop()
             defer { XCTAssertNoThrow(try embeddedEventLoop.syncShutdownGracefully()) }
@@ -490,7 +491,6 @@ final class TransactionTests: XCTestCase {
     }
 
     func testBiDirectionalStreamingHTTP2() {
-        guard #available(macOS 10.15, iOS 13.0, watchOS 6.0, tvOS 13.0, *) else { return }
         XCTAsyncTest {
             let eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: 1)
             let eventLoop = eventLoopGroup.next()

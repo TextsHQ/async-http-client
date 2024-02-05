@@ -1,4 +1,4 @@
-// swift-tools-version:5.6
+// swift-tools-version:5.7
 //===----------------------------------------------------------------------===//
 //
 // This source file is part of the AsyncHTTPClient open source project
@@ -23,20 +23,27 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/TextsHQ/swift-nio.git", branch: "main"),
         .package(url: "https://github.com/TextsHQ/swift-nio-ssl.git", branch: "main"),
-        .package(url: "https://github.com/TextsHQ/swift-nio-http2.git", revision: "01deb2a6f4b31f17d310fd81d505170f17f79194"),
+        .package(url: "https://github.com/TextsHQ/swift-nio-http2.git", branch: "main"),
         .package(url: "https://github.com/TextsHQ/swift-nio-extras.git", branch: "main"),
+        .package(url: "https://github.com/apple/swift-nio-transport-services.git", branch: "main"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.4.4"),
         .package(url: "https://github.com/apple/swift-atomics.git", from: "1.0.2"),
         .package(url: "https://github.com/apple/swift-docc-plugin", from: "1.0.0"),
         .package(url: "https://github.com/apple/swift-algorithms", from: "1.0.0"),
     ],
     targets: [
-        .target(name: "CAsyncHTTPClient"),
+        .target(
+            name: "CAsyncHTTPClient",
+            cSettings: [
+                .define("_GNU_SOURCE"),
+            ]
+        ),
         .target(
             name: "AsyncHTTPClient",
             dependencies: [
                 .target(name: "CAsyncHTTPClient"),
                 .product(name: "NIO", package: "swift-nio"),
+                .product(name: "NIOTLS", package: "swift-nio"),
                 .product(name: "NIOCore", package: "swift-nio"),
                 .product(name: "NIOPosix", package: "swift-nio"),
                 .product(name: "NIOHTTP1", package: "swift-nio"),
@@ -54,6 +61,7 @@ let package = Package(
             name: "AsyncHTTPClientTests",
             dependencies: [
                 .target(name: "AsyncHTTPClient"),
+                .product(name: "NIOTLS", package: "swift-nio"),
                 .product(name: "NIOCore", package: "swift-nio"),
                 .product(name: "NIOConcurrencyHelpers", package: "swift-nio"),
                 .product(name: "NIOEmbedded", package: "swift-nio"),
