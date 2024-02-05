@@ -153,6 +153,7 @@ extension HTTPClient {
         public var body: Body?
         /// Request-specific TLS configuration, defaults to no request-specific TLS configuration.
         public var tlsConfiguration: TLSConfiguration?
+        public var redirectConfiguration: HTTPClient.Configuration.RedirectConfiguration?
 
         /// Parsed, validated and deconstructed URL.
         let deconstructedURL: DeconstructedURL
@@ -171,7 +172,7 @@ extension HTTPClient {
         ///     - `unsupportedScheme` if URL does contains unsupported HTTP scheme.
         ///     - `emptyHost` if URL does not contains a host.
         public init(url: String, method: HTTPMethod = .GET, headers: HTTPHeaders = HTTPHeaders(), body: Body? = nil) throws {
-            try self.init(url: url, method: method, headers: headers, body: body, tlsConfiguration: nil)
+            try self.init(url: url, method: method, headers: headers, body: body, tlsConfiguration: nil, redirectConfiguration: nil)
         }
 
         /// Create HTTP request.
@@ -188,12 +189,12 @@ extension HTTPClient {
         ///     - `emptyScheme` if URL does not contain HTTP scheme.
         ///     - `unsupportedScheme` if URL does contains unsupported HTTP scheme.
         ///     - `emptyHost` if URL does not contains a host.
-        public init(url: String, method: HTTPMethod = .GET, headers: HTTPHeaders = HTTPHeaders(), body: Body? = nil, tlsConfiguration: TLSConfiguration?) throws {
+        public init(url: String, method: HTTPMethod = .GET, headers: HTTPHeaders = HTTPHeaders(), body: Body? = nil, tlsConfiguration: TLSConfiguration?, redirectConfiguration: HTTPClient.Configuration.RedirectConfiguration?) throws {
             guard let url = URL(string: url) else {
                 throw HTTPClientError.invalidURL
             }
 
-            try self.init(url: url, method: method, headers: headers, body: body, tlsConfiguration: tlsConfiguration)
+            try self.init(url: url, method: method, headers: headers, body: body, tlsConfiguration: tlsConfiguration, redirectConfiguration: redirectConfiguration)
         }
 
         /// Create an HTTP `Request`.
@@ -209,7 +210,7 @@ extension HTTPClient {
         ///     - `emptyHost` if URL does not contains a host.
         ///     - `missingSocketPath` if URL does not contains a socketPath as an encoded host.
         public init(url: URL, method: HTTPMethod = .GET, headers: HTTPHeaders = HTTPHeaders(), body: Body? = nil) throws {
-            try self.init(url: url, method: method, headers: headers, body: body, tlsConfiguration: nil)
+            try self.init(url: url, method: method, headers: headers, body: body, tlsConfiguration: nil, redirectConfiguration: nil)
         }
 
         /// Create an HTTP `Request`.
@@ -225,7 +226,7 @@ extension HTTPClient {
         ///     - `unsupportedScheme` if URL does contains unsupported HTTP scheme.
         ///     - `emptyHost` if URL does not contains a host.
         ///     - `missingSocketPath` if URL does not contains a socketPath as an encoded host.
-        public init(url: URL, method: HTTPMethod = .GET, headers: HTTPHeaders = HTTPHeaders(), body: Body? = nil, tlsConfiguration: TLSConfiguration?) throws {
+        public init(url: URL, method: HTTPMethod = .GET, headers: HTTPHeaders = HTTPHeaders(), body: Body? = nil, tlsConfiguration: TLSConfiguration?, redirectConfiguration: HTTPClient.Configuration.RedirectConfiguration?) throws {
             self.deconstructedURL = try DeconstructedURL(url: url)
 
             self.url = url
@@ -233,6 +234,7 @@ extension HTTPClient {
             self.headers = headers
             self.body = body
             self.tlsConfiguration = tlsConfiguration
+            self.redirectConfiguration = redirectConfiguration
         }
 
         /// Remote host, resolved from `URL`.

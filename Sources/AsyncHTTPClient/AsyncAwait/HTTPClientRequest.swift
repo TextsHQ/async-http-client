@@ -53,12 +53,15 @@ public struct HTTPClientRequest: Sendable {
     /// Request-specific TLS configuration, defaults to no request-specific TLS configuration.
     public var tlsConfiguration: TLSConfiguration?
 
+    public var redirectConfiguration: HTTPClient.Configuration.RedirectConfiguration?
+
     public init(url: String) {
         self.url = url
         self.method = .GET
         self.headers = .init()
         self.body = .none
         self.tlsConfiguration = nil
+        self.redirectConfiguration = nil
     }
 }
 

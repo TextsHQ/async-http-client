@@ -558,7 +558,7 @@ public class HTTPClient {
             deadline: deadline,
             logger: originalLogger,
             redirectState: RedirectState(
-                self.configuration.redirectConfiguration.mode,
+                (request.redirectConfiguration ?? self.configuration.redirectConfiguration).mode,
                 initialURL: request.url.absoluteString
             )
         )

@@ -35,7 +35,7 @@ extension HTTPClient {
             request,
             deadline: deadline,
             logger: logger ?? Self.loggingDisabled,
-            redirectState: RedirectState(self.configuration.redirectConfiguration.mode, initialURL: request.url)
+            redirectState: RedirectState((request.redirectConfiguration ?? self.configuration.redirectConfiguration).mode, initialURL: request.url)
         )
     }
 }
